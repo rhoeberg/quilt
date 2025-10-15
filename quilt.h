@@ -64,6 +64,7 @@ void clear_arena(struct Arena *arena) {
 	return;
 }
 
+// TODO (rhoe) should we implement automatic arena growth?
 u8* arena_allocate(struct Arena *arena, i64 amount) {
 	if(arena->current_offset + amount > arena->max_size) {
 		printf("arena error: failed to allocate, amount exceeds memory left\n");
@@ -91,12 +92,10 @@ struct Quilt_String add_quilt_string(char *value, struct Arena *arena) {
 	struct Quilt_String result;
 	int length = quilt_string_length(value);
 	result.length = length;
-	/* result.buffer = (char*)alloc_func(length); */
 	result.buffer = (char*)arena_allocate(arena, length);
 	sprintf(result.buffer, "%s", value);
 	return result;
 }
-/* #define TEMP_STRING(value) add_quilt_string(value, temp_allocate) */
 
 //////////////////////////////
 // QUILT API
@@ -112,8 +111,8 @@ struct Quilt_State quilt_load(char *path) {
 	char c;
    
 	// TODO (rhoe) need to support longer lines
-	char string_buffer[128];
-	while(fgets(string_buffer, 128, file_ptr) != NULL) {
+	char string_buffer[1024];
+	while(fgets(string_buffer, 1024, file_ptr) != NULL) {
 		struct Quilt_String* string_ptr = (struct Quilt_String*)arena_allocate(&state.lines, sizeof(struct Quilt_String));
 
 		*string_ptr = add_quilt_string(string_buffer, &state.lines_text);
@@ -145,7 +144,6 @@ void quilt_cleanup(struct Quilt_State* state) {
 	free(state->temp_arena.data);
 }
 
-/* BOOL quilt_find(struct File_State *state, struct Quilt_String value) { */
 struct Quilt_Search_Result quilt_find_first(struct Quilt_State* state, char* value) {
 	struct Quilt_Search_Result result;
 	result.found = FALSE;
@@ -184,7 +182,9 @@ struct Quilt_Search_Result quilt_find_first(struct Quilt_State* state, char* val
 /*
 
   quilt_find_all
-  you need to allocate a buffer and pass it
+  results is a buffer of Quilt_Search_Result
+  max_results is the size of the results buffer
+
 
 */
 i32 quilt_find_all(struct Quilt_State* state, struct Quilt_Search_Result* results, i32 max_results, char* value) {
