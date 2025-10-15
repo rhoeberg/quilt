@@ -172,15 +172,14 @@ struct Quilt_Search_Result quilt_find_first(struct Quilt_State* state, char* val
 				result.found = TRUE;
 				result.line = l;
 				result.column = c;
-				break;
+				return result;
 			}
 		}
 	}
 
-
-
 	return result;
 }
+
 
 /*
 
