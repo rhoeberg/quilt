@@ -1,3 +1,17 @@
+/*
+
+  QUILT - quick text filter
+
+  todo:
+  - handle utf-8
+  - multithreading
+  - simd
+  - linux/osx build
+  - optimize loading (maybe load entire file to string and then split it in lines in an optimized way)
+
+
+*/
+
 #pragma once
 
 // TYPES
@@ -32,12 +46,19 @@ struct Arena {
 	i64 max_size;
 };
 
-struct Quilt_State {
-	struct Arena temp_arena;
+struct Quilt_Line {
+	i64 offset, length;
+};
 
+struct Quilt_State {
+	bool initialized;
+
+	struct Arena temp_arena;
+	
+	char* text_buffer;
 	i64 amount_of_lines;
 	struct Arena lines;
-	struct Arena lines_text;
+	/* struct Arena lines_text; */
 };
 
 struct Quilt_Search_Result {
@@ -68,6 +89,7 @@ void clear_arena(struct Arena *arena) {
 u8* arena_allocate(struct Arena *arena, i64 amount) {
 	if(arena->current_offset + amount > arena->max_size) {
 		printf("arena error: failed to allocate, amount exceeds memory left\n");
+		printf("current size: %lld,  size after: %lld\n", arena->max_size / MEGABYTE, amount);
 		return NULL;
 	}
 
@@ -93,36 +115,90 @@ struct Quilt_String add_quilt_string(char *value, struct Arena *arena) {
 	int length = quilt_string_length(value);
 	result.length = length;
 	result.buffer = (char*)arena_allocate(arena, length);
-	sprintf(result.buffer, "%s", value);
+	snprintf(result.buffer, length, "%s", value);
 	return result;
 }
+struct Quilt_String add_quilt_string_from_buffer(char* buffer, i64 start_index, i64 end_index, struct Arena *arena) {
+	struct Quilt_String result;
+
+	i32 length = end_index - start_index;
+	result.length = length;
+	result.buffer = (char*)arena_allocate(arena, length);
+	snprintf(result.buffer, length, "%s", &buffer[start_index]);
+	return result;
+}
+
 
 //////////////////////////////
 // QUILT API
 struct Quilt_State quilt_load(char *path) {
 	struct Quilt_State state;
 	FILE* file_ptr = fopen(path, "r");
-	state.lines = create_arena(128*MEGABYTE);
-	state.lines_text = create_arena(1*GIGABYTE);
+	state.lines = create_arena(512*MEGABYTE);
+	/* state.lines_text = create_arena(1*GIGABYTE); */
 	state.temp_arena = create_arena(512*MEGABYTE);
 	state.amount_of_lines = 0;
 
-	i64 last_line_start = 0;
-	char c;
+	/* i64 last_line_start = 0; */
+	/* char c; */
    
 	// TODO (rhoe) need to support longer lines
-	char string_buffer[1024];
-	while(fgets(string_buffer, 1024, file_ptr) != NULL) {
-		struct Quilt_String* string_ptr = (struct Quilt_String*)arena_allocate(&state.lines, sizeof(struct Quilt_String));
+	/* char string_buffer[1024]; */
+	/* while(fgets(string_buffer, 1024, file_ptr) != NULL) { */
+	/* 	struct Quilt_String* string_ptr = (struct Quilt_String*)arena_allocate(&state.lines, sizeof(struct Quilt_String)); */
 
-		*string_ptr = add_quilt_string(string_buffer, &state.lines_text);
-		state.amount_of_lines += 1;
+	/* 	*string_ptr = add_quilt_string(string_buffer, &state.lines_text); */
+	/* 	state.amount_of_lines += 1; */
 
+	/* } */
+
+	fseek(file_ptr, 0, SEEK_END);
+	i64 size = ftell(file_ptr);
+	fseek(file_ptr, 0, SEEK_SET);
+
+	// TODO (rhoe) this buffer should be malloced as temp arena
+	state.text_buffer = malloc(size + 1);
+	if(!state.text_buffer) {
+		printf("quilt error: failed to malloc buffer for file");
+		fclose(file_ptr);
+		state.initialized = FALSE;
+		return state;
 	}
+
+	fread(state.text_buffer, 1, size, file_ptr);
+	state.text_buffer[size] = '\0';
+
 
 	fclose(file_ptr);
 
+	i64 current_index = 0;
+	i64 last_line_start = 0;
+	while(current_index < size) {
+		char current_token = state.text_buffer[current_index];
+		if(current_token == '\n') {
+			i64 length = current_index - last_line_start;
+			if(length > 0) {
+				struct Quilt_Line* line = (struct Quilt_Line*)arena_allocate(&state.lines, sizeof(struct Quilt_Line));
+				line->offset = last_line_start;
+				line->length = length;
+				current_index += 1;
+				last_line_start = current_index;
+				state.amount_of_lines += 1;
+			}
+		}
+		current_index += 1;
+	}
+
+
+	/* free(state.text_buffer); */
 	return state;
+}
+
+void quilt_print_line(struct Quilt_State* state, struct Quilt_Line line) {
+	// TODO (rhoe) we can either use fputs and write one char at a time
+	//             or we can write the segment into a temp buffer
+	fwrite(state->text_buffer + line.offset, 1, line.length, stdout);
+	printf("\n");
 }
 
 void quilt_print_string(struct Quilt_String value) {
@@ -140,43 +216,69 @@ void quilt_print_file(struct Quilt_State* state) {
 
 void quilt_cleanup(struct Quilt_State* state) {
 	free(state->lines.data);
-	free(state->lines_text.data);
+	/* free(state->lines_text.data); */
 	free(state->temp_arena.data);
 }
 
-struct Quilt_Search_Result quilt_find_first(struct Quilt_State* state, char* value) {
-	struct Quilt_Search_Result result;
-	result.found = FALSE;
+/* bool quilt_match_line(Quilt_State* state, Qilt_Line* line, char *value) { */
+/* 	struct Quilt_Line* line = &lines[l]; */
 
-	BOOL found_matching = TRUE;
-	i32 value_length = quilt_string_length(value);
+/* 	bool result = FALSE; */
 
-	struct Quilt_String* lines = (struct Quilt_String*)state->lines.data;
-	for(int l = 0; l < state->amount_of_lines; l++) {
-		struct Quilt_String* line = &lines[l];
+/* 	for(int c = 0; c < line->length - value_length; c++) { */
+/* 		found_matching = TRUE; */
 
-		for(int c = 0; c < line->length - value_length; c++) {
-			found_matching = TRUE;
+/* 		for(int i = 0; i < value_length; i++) { */
+/* 			int offset = c; */
+/* 			if(state->text_buffer[line->offset + i] != value[i]) { */
+/* 				found_matching = FALSE; */
+/* 				break; */
+/* 			} */
+/* 		} */
 
-			for(int i = 0; i < value_length; i++) {
-				int offset = c;
-				if(line->buffer[offset + i] != value[i]) {
-					found_matching = FALSE;
-					break;
-				}
-			}
+/* 		if(found_matching) { */
+/* 			result.found = TRUE; */
+/* 			result.line = l; */
+/* 			result.column = c; */
+/* 			return result; */
+/* 		} */
+/* 	} */
+	
+/* } */
 
-			if(found_matching) {
-				result.found = TRUE;
-				result.line = l;
-				result.column = c;
-				return result;
-			}
-		}
-	}
+/* struct Quilt_Search_Result quilt_find_first(struct Quilt_State* state, char* value) { */
+/* 	struct Quilt_Search_Result result; */
+/* 	result.found = FALSE; */
 
-	return result;
-}
+/* 	BOOL found_matching = TRUE; */
+/* 	i32 value_length = quilt_string_length(value); */
+
+/* 	struct Quilt_Line* lines = (struct Quilt_Line*)state->lines.data; */
+/* 	for(int l = 0; l < state->amount_of_lines; l++) { */
+/* 		struct Quilt_Line* line = &lines[l]; */
+
+/* 		for(int c = 0; c < line->length - value_length; c++) { */
+/* 			found_matching = TRUE; */
+
+/* 			for(int i = 0; i < value_length; i++) { */
+/* 				int offset = c; */
+/* 				if(state->text_buffer[line->offset + i] != value[i]) { */
+/* 					found_matching = FALSE; */
+/* 					break; */
+/* 				} */
+/* 			} */
+
+/* 			if(found_matching) { */
+/* 				result.found = TRUE; */
+/* 				result.line = l; */
+/* 				result.column = c; */
+/* 				return result; */
+/* 			} */
+/* 		} */
+/* 	} */
+
+/* 	return result; */
+/* } */
 
 
 /*
@@ -200,16 +302,16 @@ i32 quilt_find_all(struct Quilt_State* state, struct Quilt_Search_Result* result
 
 	i32 result_count = 0;
 
-	struct Quilt_String* lines = (struct Quilt_String*)state->lines.data;
+	struct Quilt_Line* lines = (struct Quilt_Line*)state->lines.data;
 	for(int l = 0; l < state->amount_of_lines; l++) {
-		struct Quilt_String* line = &lines[l];
+		struct Quilt_Line* line = &lines[l];
 
 		for(int c = 0; c < line->length - value_length; c++) {
 			BOOL found_matching = TRUE;
 
 			for(int i = 0; i < value_length; i++) {
 				int offset = c;
-				if(line->buffer[offset + i] != value[i]) {
+				if(state->text_buffer[line->offset + offset + i] != value[i]) {
 					found_matching = FALSE;
 					break;
 				}
@@ -230,3 +332,5 @@ i32 quilt_find_all(struct Quilt_State* state, struct Quilt_Search_Result* result
 
 	return result_count;
 }
+
+/* i32 quilt_find_first */

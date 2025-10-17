@@ -1,2 +1,2 @@
 @echo off
-build\test.exe "cimgui.h" "is"
+build\test.exe "maildir/combined.txt" "chair"
