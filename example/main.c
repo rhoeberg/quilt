@@ -21,12 +21,10 @@ int main(int argc, char *argv[]) {
 	char* file_path = argv[1];
 	char* search_token = argv[2];
 
-
 	printf("searching for: \"%s\", in file: %s\n", search_token, file_path);
-
 	
 	QueryPerformanceCounter(&start);
-	struct Quilt_State state = quilt_load(file_path);
+	Quilt_State state = quilt_load(file_path);
 	QueryPerformanceCounter(&end);
 	elapsed_time = (double)(end.QuadPart - start.QuadPart) / frequency.QuadPart;
 
@@ -45,11 +43,10 @@ int main(int argc, char *argv[]) {
 	printf("result_count: %d\n", result_count);
 	for(int i = 0; i < result_count; i++) {
 		struct Quilt_Search_Result result = results[i];
-		struct Quilt_Line* lines = (struct Quilt_Line*)state.lines.data;
-		struct Quilt_Line line = lines[result.line];
+		Quilt_Line* lines = (Quilt_Line*)state.lines.data;
+		Quilt_Line line = lines[result.line];
 		printf("%s:%d:%d:\n", file_path, result.line, result.column);
 		quilt_print_line(&state, line);
-		/* quilt_print_string(line); */
 	}
 	QueryPerformanceCounter(&end);
 	elapsed_time = (double)(end.QuadPart - start.QuadPart) / frequency.QuadPart;

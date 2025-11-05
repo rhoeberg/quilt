@@ -8,5 +8,5 @@ IF NOT EXIST build (
 )
 
 pushd build
-cl -Zi ../example/main.c /Fetest.exe /link /debug:full 
+cl -Zi ../example/main.c /Fetest.exe /link /DEBUG:FULL 
 popd
