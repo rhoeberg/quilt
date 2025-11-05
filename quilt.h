@@ -14,6 +14,8 @@
 
 #pragma once
 
+#include <stdint.h>
+
 // TYPES
 typedef int8_t i8;
 typedef int16_t i16;
@@ -26,7 +28,27 @@ typedef uint64_t u64;
 
 #define TRUE 1
 #define FALSE 0
+
+#if defined(_MSC_VER)
+// TODO (rhoe) should be multiplatform
+#include <windows.h>
 typedef int8_t bool;
+#define THREAD HANDLE
+#define CREATE_THREAD(thread, func, data) thread = CreateThread(NULL, 0, func, data, 0, NULL)
+#define WAIT_FOR_THREADS() \
+	WaitForMultipleObjects(state->number_of_threads, threads, TRUE, INFINITE); \
+	for(int i = 0; i < state->number_of_threads; i++) {\
+		CloseHandle(threads[i]);\
+	}
+#else
+        /* int rc = pthread_create(&threads[i], NULL, threadFunction, (void*)&threadData[i]); */
+#include <pthread.c>
+#define THREAD pthread_t
+#define CREATE_THREAD(thread, func, data) pthread_create(thread, NULL, func, data)
+#define WAIT_FOR_THREADS() for(int i = 0; i < state->number_of_threads; i++) {\
+		pthread_join((threads[i]);										\
+	}
+#endif
 
 #define KILOBYTE (1024ULL)
 #define MEGABYTE (1024ULL * KILOBYTE)
@@ -35,8 +57,7 @@ typedef int8_t bool;
 
 #define ASSERT(Expression) if(!(Expression)) {*(volatile i32 *)0 = 0;}
 
-// TODO (rhoe) should be multiplatform
-#include <windows.h>
+
 
 typedef struct {
 	char *buffer;
@@ -433,15 +454,14 @@ i32 quilt_find_all(Quilt_State* state, Quilt_Search_Result* results, i32 max_res
 	i32 value_length = quilt_string_length(value);
 	ASSERT(value_length > 0);
 
-
+	/* THREAD threads[ */
 
 	i32 base_tasks = state->amount_of_lines / state->number_of_threads;
 	i32 remainder = state->amount_of_lines % state->number_of_threads;
-	HANDLE* threads = malloc(sizeof(HANDLE) * state->number_of_threads);
+	/* HANDLE* threads = malloc(sizeof(HANDLE) * state->number_of_threads); */
+	THREAD* threads = malloc(sizeof(THREAD) * state->number_of_threads);
 
-	/* #define MAX_RESULTS_PER_THREAD 4096 */
 	i32 max_result_per_thread = max_results / state->number_of_threads;
-	/* i32* ids = malloc(sizeof(i32) * state->number_of_threads); */
 	Thread_State* thread_states = malloc(sizeof(Thread_State) * state->number_of_threads);
 	i32 next_line_start = 0;
 	for(int i = 0; i < state->number_of_threads; i++) {
@@ -459,16 +479,18 @@ i32 quilt_find_all(Quilt_State* state, Quilt_Search_Result* results, i32 max_res
 		thread_states[i].value = value;
 		next_line_start = thread_states[i].line_stop + 1;
 		
-		threads[i] = CreateThread(NULL, 0, quilt_find_in_lines, &thread_states[i], 0, NULL);
+		/* threads[i] = CreateThread(NULL, 0, quilt_find_in_lines, &thread_states[i], 0, NULL); */
+		CREATE_THREAD(threads[i], quilt_find_in_lines, &thread_states[i]);
 		if(threads[i] == NULL) {
 			printf("CreateThread failed (%lu)\n", GetLastError());
 		}
 	}
 
-	WaitForMultipleObjects(state->number_of_threads, threads, TRUE, INFINITE);
-	for(int i = 0; i < state->number_of_threads; i++) {
-		CloseHandle(threads[i]);
-	}
+	/* WaitForMultipleObjects(state->number_of_threads, threads, TRUE, INFINITE); */
+	/* for(int i = 0; i < state->number_of_threads; i++) { */
+	/* 	CloseHandle(threads[i]); */
+	/* } */
+	WAIT_FOR_THREADS()
 
 	Quilt_Search_Result* search_results_current = results;
 	i32 result_count = 0;

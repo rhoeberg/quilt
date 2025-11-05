@@ -1,4 +1,4 @@
 
 mkdir -p build
-c++ src/main.c -o build/test.exe -g
+gcc example/main.c -o build/test.exe -g
 
