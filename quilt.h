@@ -6,15 +6,16 @@
   - [ ] handle utf-8
   - [x] multithreading
   - [ ] simd
-  - [ ] linux/osx build
+  - [x] linux/osx build
   - [ ] optimize loading (maybe load entire file to string and then split it in lines in an optimized way)
-
 
 */
 
 #pragma once
 
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 // TYPES
 typedef int8_t i8;
@@ -29,9 +30,14 @@ typedef uint64_t u64;
 #define TRUE 1
 #define FALSE 0
 
+
+/////////////////////////////////
+// WINDOWS IMPLEMENTATION
 #if defined(_MSC_VER)
-// TODO (rhoe) should be multiplatform
 #include <windows.h>
+#define THREAD_DATA LPVOID
+#define THREAD_RESULT DWORD
+#define THREAD_RETURN_OK 0
 typedef int8_t bool;
 #define THREAD HANDLE
 #define CREATE_THREAD(thread, func, data) thread = CreateThread(NULL, 0, func, data, 0, NULL)
@@ -40,14 +46,33 @@ typedef int8_t bool;
 	for(int i = 0; i < state->number_of_threads; i++) {\
 		CloseHandle(threads[i]);\
 	}
+
+i32 get_number_of_cores() {
+	SYSTEM_INFO sysinfo;
+	GetSystemInfo(&sysinfo);
+	DWORD num_cores = sysinfo.dwNumberOfProcessors;
+	return num_cores;
+}
 #else
-        /* int rc = pthread_create(&threads[i], NULL, threadFunction, (void*)&threadData[i]); */
-#include <pthread.c>
+
+/////////////////////////////////
+// UNIX (PTHREAD) IMPLEMENTATION
+#define THREAD_DATA void*
+#define THREAD_RESULT void*
+#define THREAD_RETURN_OK pthread_exit(NULL)
+typedef int8_t bool;
+#include <pthread.h>
 #define THREAD pthread_t
 #define CREATE_THREAD(thread, func, data) pthread_create(thread, NULL, func, data)
-#define WAIT_FOR_THREADS() for(int i = 0; i < state->number_of_threads; i++) {\
-		pthread_join((threads[i]);										\
+#define WAIT_FOR_THREADS() \
+	for(int i = 0; i < state->number_of_threads; i++) {					\
+		pthread_join(threads[i], NULL);										\
 	}
+#include <unistd.h>
+i32 get_number_of_cores() {
+	long num_cores = sysconf(_SC_NPROCESSORS_ONLN);
+	return num_cores;
+}
 #endif
 
 #define KILOBYTE (1024ULL)
@@ -56,8 +81,6 @@ typedef int8_t bool;
 #define TERRABYTE (1024ULL * GIGABYTE)
 
 #define ASSERT(Expression) if(!(Expression)) {*(volatile i32 *)0 = 0;}
-
-
 
 typedef struct {
 	char *buffer;
@@ -112,13 +135,6 @@ Arena create_arena(i64 max_size) {
 	result.max_size = max_size;
 	result.current_offset = 0;
 	return result;
-}
-
-i32 get_number_of_cores_windows() {
-	SYSTEM_INFO sysinfo;
-	GetSystemInfo(&sysinfo);
-	DWORD num_cores = sysinfo.dwNumberOfProcessors;
-	return num_cores;
 }
 
 void clear_arena(Arena *arena) {
@@ -176,24 +192,10 @@ Quilt_State quilt_load(char *path) {
 	Quilt_State state;
 	FILE* file_ptr = fopen(path, "r");
 	state.lines = create_arena(512*MEGABYTE);
-	/* state.lines_text = create_arena(1*GIGABYTE); */
 	state.temp_arena = create_arena(512*MEGABYTE);
 	state.amount_of_lines = 0;
 
-	state.number_of_threads = get_number_of_cores_windows();
-
-	/* i64 last_line_start = 0; */
-	/* char c; */
-   
-	// TODO (rhoe) need to support longer lines
-	/* char string_buffer[1024]; */
-	/* while(fgets(string_buffer, 1024, file_ptr) != NULL) { */
-	/* 	struct Quilt_String* string_ptr = (struct Quilt_String*)arena_allocate(&state.lines, sizeof(struct Quilt_String)); */
-
-	/* 	*string_ptr = add_quilt_string(string_buffer, &state.lines_text); */
-	/* 	state.amount_of_lines += 1; */
-
-	/* } */
+	state.number_of_threads = get_number_of_cores();
 
 	fseek(file_ptr, 0, SEEK_END);
 	i64 size = ftell(file_ptr);
@@ -232,8 +234,6 @@ Quilt_State quilt_load(char *path) {
 		current_index += 1;
 	}
 
-
-	/* free(state.text_buffer); */
 	return state;
 }
 
@@ -259,70 +259,8 @@ void quilt_print_file(Quilt_State* state) {
 
 void quilt_cleanup(Quilt_State* state) {
 	free(state->lines.data);
-	/* free(state->lines_text.data); */
 	free(state->temp_arena.data);
 }
-
-/* bool quilt_match_line(Quilt_State* state, Qilt_Line* line, char *value) { */
-/* 	struct Quilt_Line* line = &lines[l]; */
-
-/* 	bool result = FALSE; */
-
-/* 	for(int c = 0; c < line->length - value_length; c++) { */
-/* 		found_matching = TRUE; */
-
-/* 		for(int i = 0; i < value_length; i++) { */
-/* 			int offset = c; */
-/* 			if(state->text_buffer[line->offset + i] != value[i]) { */
-/* 				found_matching = FALSE; */
-/* 				break; */
-/* 			} */
-/* 		} */
-
-/* 		if(found_matching) { */
-/* 			result.found = TRUE; */
-/* 			result.line = l; */
-/* 			result.column = c; */
-/* 			return result; */
-/* 		} */
-/* 	} */
-	
-/* } */
-
-/* struct Quilt_Search_Result quilt_find_first(struct Quilt_State* state, char* value) { */
-/* 	struct Quilt_Search_Result result; */
-/* 	result.found = FALSE; */
-
-/* 	BOOL found_matching = TRUE; */
-/* 	i32 value_length = quilt_string_length(value); */
-
-/* 	struct Quilt_Line* lines = (struct Quilt_Line*)state->lines.data; */
-/* 	for(int l = 0; l < state->amount_of_lines; l++) { */
-/* 		struct Quilt_Line* line = &lines[l]; */
-
-/* 		for(int c = 0; c < line->length - value_length; c++) { */
-/* 			found_matching = TRUE; */
-
-/* 			for(int i = 0; i < value_length; i++) { */
-/* 				int offset = c; */
-/* 				if(state->text_buffer[line->offset + i] != value[i]) { */
-/* 					found_matching = FALSE; */
-/* 					break; */
-/* 				} */
-/* 			} */
-
-/* 			if(found_matching) { */
-/* 				result.found = TRUE; */
-/* 				result.line = l; */
-/* 				result.column = c; */
-/* 				return result; */
-/* 			} */
-/* 		} */
-/* 	} */
-
-/* 	return result; */
-/* } */
-
 
 /*
 
@@ -350,7 +288,7 @@ i32 quilt_find_all_single_thread(Quilt_State* state, Quilt_Search_Result* result
 		Quilt_Line* line = &lines[l];
 
 		for(int c = 0; c < line->length - value_length; c++) {
-			BOOL found_matching = TRUE;
+			bool found_matching = TRUE;
 
 			for(int i = 0; i < value_length; i++) {
 				int offset = c;
@@ -376,15 +314,8 @@ i32 quilt_find_all_single_thread(Quilt_State* state, Quilt_Search_Result* result
 	return result_count;
 }
 
-/* i32 quilt_find_in_lines(struct Quilt_State* state, i32 line_start, i32 line_stop, struct Quilt_Search_Result* results, i32 max_results, char* value) { */
-i32 quilt_find_in_lines(LPVOID param) {
+THREAD_RESULT quilt_find_in_lines(THREAD_DATA param) {
 	Thread_State* thread_state = (Thread_State*)param;
-
-	/* printf("starting thread\n"); */
-	/* printf("line_start, line_stop: %d, %d\n", thread_state->line_start, thread_state->line_stop); */
-
-
-	/* ASSERT(thrresults != NULL); */
 
 	if(thread_state->max_results <= 0) {
 		printf("quilt warning (quilt_find_all): max results needs to be higher than 0\n");
@@ -399,7 +330,7 @@ i32 quilt_find_in_lines(LPVOID param) {
 		Quilt_Line* line = &lines[l];
 
 		for(int c = 0; c < line->length - value_length; c++) {
-			BOOL found_matching = TRUE;
+			bool found_matching = TRUE;
 
 			for(int i = 0; i < value_length; i++) {
 				int offset = c;
@@ -410,37 +341,21 @@ i32 quilt_find_in_lines(LPVOID param) {
 			}
 
 			if(found_matching) {
-				/* BOOL waiting_for_free_mutex = TRUE; */
-				/* while(waiting_for_free_mutex) { */
-					// TODO (rhoe) blocking method
-					/* DWORD dwWaitResult = WaitForSingleObject(ghMutex, INFINITE); */
-					// TODO (rhoe) blocking method
-					/* DWORD dwWaitResult = WaitForSingleObject(ghMutex, 0); */
-					/* if(dwWaitResult == WAIT_OBJECT_0) { */
-						if(thread_state->result_count >= thread_state->max_results) {
-							// cannot add more results
-						} else {
-							thread_state->results[thread_state->result_count].found = TRUE;
-							thread_state->results[thread_state->result_count].line = l;
-							thread_state->results[thread_state->result_count].column = c;
-							c += value_length;
-							thread_state->result_count += 1;
-							/* if(*thread_state->result_count >= thread_state->max_results) { */
-							/* 	return *thread_state->result_count; */
-							/* } */
-						}
-
-						/* waiting_for_free_mutex = FALSE; */
-						/* ReleaseMutex(ghMutex); */
-					/* } else if (dwWaitResult == WAIT_TIMEOUT) { */
-						// locked by another thread
-						/* thread_state->lock_fails++; */
-					/* } */
+				if(thread_state->result_count >= thread_state->max_results) {
+					// TODO (rhoe) handle not having enough space for results
+					// cannot add more results
+				} else {
+					thread_state->results[thread_state->result_count].found = TRUE;
+					thread_state->results[thread_state->result_count].line = l;
+					thread_state->results[thread_state->result_count].column = c;
+					c += value_length;
+					thread_state->result_count += 1;
+				}
 			}
 		}
 	}
 
-	return thread_state->result_count;
+	THREAD_RETURN_OK;
 }
 
 i32 quilt_find_all(Quilt_State* state, Quilt_Search_Result* results, i32 max_results, char* value) {
@@ -454,11 +369,8 @@ i32 quilt_find_all(Quilt_State* state, Quilt_Search_Result* results, i32 max_res
 	i32 value_length = quilt_string_length(value);
 	ASSERT(value_length > 0);
 
-	/* THREAD threads[ */
-
 	i32 base_tasks = state->amount_of_lines / state->number_of_threads;
 	i32 remainder = state->amount_of_lines % state->number_of_threads;
-	/* HANDLE* threads = malloc(sizeof(HANDLE) * state->number_of_threads); */
 	THREAD* threads = malloc(sizeof(THREAD) * state->number_of_threads);
 
 	i32 max_result_per_thread = max_results / state->number_of_threads;
@@ -479,17 +391,9 @@ i32 quilt_find_all(Quilt_State* state, Quilt_Search_Result* results, i32 max_res
 		thread_states[i].value = value;
 		next_line_start = thread_states[i].line_stop + 1;
 		
-		/* threads[i] = CreateThread(NULL, 0, quilt_find_in_lines, &thread_states[i], 0, NULL); */
-		CREATE_THREAD(threads[i], quilt_find_in_lines, &thread_states[i]);
-		if(threads[i] == NULL) {
-			printf("CreateThread failed (%lu)\n", GetLastError());
-		}
+		CREATE_THREAD(&threads[i], quilt_find_in_lines, &thread_states[i]);
 	}
 
-	/* WaitForMultipleObjects(state->number_of_threads, threads, TRUE, INFINITE); */
-	/* for(int i = 0; i < state->number_of_threads; i++) { */
-	/* 	CloseHandle(threads[i]); */
-	/* } */
 	WAIT_FOR_THREADS()
 
 	Quilt_Search_Result* search_results_current = results;
@@ -505,36 +409,6 @@ i32 quilt_find_all(Quilt_State* state, Quilt_Search_Result* results, i32 max_res
 
 	free(thread_states);
 	free(threads);
-
-	
-
-	/* struct Quilt_Line* lines = (struct Quilt_Line*)state->lines.data; */
-	/* for(int l = 0; l < state->amount_of_lines; l++) { */
-	/* 	struct Quilt_Line* line = &lines[l]; */
-
-	/* 	for(int c = 0; c < line->length - value_length; c++) { */
-	/* 		BOOL found_matching = TRUE; */
-
-	/* 		for(int i = 0; i < value_length; i++) { */
-	/* 			int offset = c; */
-	/* 			if(state->text_buffer[line->offset + offset + i] != value[i]) { */
-	/* 				found_matching = FALSE; */
-	/* 				break; */
-	/* 			} */
-	/* 		} */
-
-	/* 		if(found_matching) { */
-	/* 			results[result_count].found = TRUE; */
-	/* 			results[result_count].line = l; */
-	/* 			results[result_count].column = c; */
-	/* 			c += value_length; */
-	/* 			result_count += 1; */
-	/* 			if(result_count >= max_results) { */
-	/* 				return result_count; */
-	/* 			} */
-	/* 		} */
-	/* 	} */
-	/* } */
 
 	return result_count;
 }
