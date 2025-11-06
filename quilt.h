@@ -238,8 +238,6 @@ Quilt_State quilt_load(char *path) {
 }
 
 void quilt_print_line(Quilt_State* state, Quilt_Line line) {
-	// TODO (rhoe) we can either use fputs and write one char at a time
-	//             or we can write the segment into a temp buffer
 	fwrite(state->text_buffer + line.offset, 1, line.length, stdout);
 	printf("\n");
 }
@@ -264,56 +262,12 @@ void quilt_cleanup(Quilt_State* state) {
 
 /*
 
-  quilt_find_all
-  results is a buffer of Quilt_Search_Result
-  max_results is the size of the results buffer
-
+  quilt_find_in_lines
+  thread worker function
+  THREAD_DATA is Thread_State*
+  searches for value from line_start to line_stop
 
 */
-i32 quilt_find_all_single_thread(Quilt_State* state, Quilt_Search_Result* results, i32 max_results, char* value) {
-	ASSERT(results != NULL);
-
-	if(max_results <= 0) {
-		printf("quilt warning (quilt_find_all): max results needs to be higher than 0\n");
-		return 0;
-	}
-
-	i32 value_length = quilt_string_length(value);
-	ASSERT(value_length > 0);
-
-	i32 result_count = 0;
-
-	Quilt_Line* lines = (Quilt_Line*)state->lines.data;
-	for(int l = 0; l < state->amount_of_lines; l++) {
-		Quilt_Line* line = &lines[l];
-
-		for(int c = 0; c < line->length - value_length; c++) {
-			bool found_matching = TRUE;
-
-			for(int i = 0; i < value_length; i++) {
-				int offset = c;
-				if(state->text_buffer[line->offset + offset + i] != value[i]) {
-					found_matching = FALSE;
-					break;
-				}
-			}
-
-			if(found_matching) {
-				results[result_count].found = TRUE;
-				results[result_count].line = l;
-				results[result_count].column = c;
-				c += value_length;
-				result_count += 1;
-				if(result_count >= max_results) {
-					return result_count;
-				}
-			}
-		}
-	}
-
-	return result_count;
-}
-
 THREAD_RESULT quilt_find_in_lines(THREAD_DATA param) {
 	Thread_State* thread_state = (Thread_State*)param;
 
@@ -358,6 +312,13 @@ THREAD_RESULT quilt_find_in_lines(THREAD_DATA param) {
 	THREAD_RETURN_OK;
 }
 
+/*
+
+  quilt_find_all
+  results is a buffer of Quilt_Search_Result
+  max_results is the size of the results buffer
+
+*/
 i32 quilt_find_all(Quilt_State* state, Quilt_Search_Result* results, i32 max_results, char* value) {
 	ASSERT(results != NULL);
 
@@ -409,6 +370,60 @@ i32 quilt_find_all(Quilt_State* state, Quilt_Search_Result* results, i32 max_res
 
 	free(thread_states);
 	free(threads);
+
+	return result_count;
+}
+
+
+/*
+
+  quilt_find_all_single_thread
+  results is a buffer of Quilt_Search_Result
+  max_results is the size of the results buffer
+
+  runs only with one thread
+
+*/
+i32 quilt_find_all_single_thread(Quilt_State* state, Quilt_Search_Result* results, i32 max_results, char* value) {
+	ASSERT(results != NULL);
+
+	if(max_results <= 0) {
+		printf("quilt warning (quilt_find_all): max results needs to be higher than 0\n");
+		return 0;
+	}
+
+	i32 value_length = quilt_string_length(value);
+	ASSERT(value_length > 0);
+
+	i32 result_count = 0;
+
+	Quilt_Line* lines = (Quilt_Line*)state->lines.data;
+	for(int l = 0; l < state->amount_of_lines; l++) {
+		Quilt_Line* line = &lines[l];
+
+		for(int c = 0; c < line->length - value_length; c++) {
+			bool found_matching = TRUE;
+
+			for(int i = 0; i < value_length; i++) {
+				int offset = c;
+				if(state->text_buffer[line->offset + offset + i] != value[i]) {
+					found_matching = FALSE;
+					break;
+				}
+			}
+
+			if(found_matching) {
+				results[result_count].found = TRUE;
+				results[result_count].line = l;
+				results[result_count].column = c;
+				c += value_length;
+				result_count += 1;
+				if(result_count >= max_results) {
+					return result_count;
+				}
+			}
+		}
+	}
 
 	return result_count;
 }
