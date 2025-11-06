@@ -89,7 +89,7 @@ i32 get_number_of_cores() {
 typedef int8_t bool;
 #include <pthread.h>
 #define THREAD pthread_t
-#define CREATE_THREAD(thread, func, data) pthread_create(thread, NULL, func, data)
+#define CREATE_THREAD(thread, func, data) pthread_create(&thread, NULL, func, data)
 #define WAIT_FOR_THREADS() \
 	for(int i = 0; i < state->number_of_threads; i++) {					\
 		pthread_join(threads[i], NULL);										\
@@ -378,7 +378,7 @@ i32 quilt_find_all(Quilt_State* state, Quilt_Search_Result* results, i32 max_res
 		thread_states[i].value = value;
 		next_line_start = thread_states[i].line_stop + 1;
 		
-		CREATE_THREAD(&threads[i], quilt_find_in_lines, &thread_states[i]);
+		CREATE_THREAD(threads[i], quilt_find_in_lines, &thread_states[i]);
 	}
 
 	WAIT_FOR_THREADS()
