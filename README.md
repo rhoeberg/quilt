@@ -16,12 +16,11 @@ run:
 make sure GCC is installed, run:
 `./build_example.sh`
 
-## Performance 
-Example benchmark: processing a 500 MB (19240926 lines) text file on an AMD Ryzen 9 5900X 12-Core CPU: 1.857589s
-
 ## How to use
 see `example/main.c` for usage example.
 
+## Performance 
+Example benchmark: processing a 500 MB (19240926 lines) text file on an AMD Ryzen 9 5900X 12-Core CPU: 1.857589s
 
 ## LICENES
 This project is licensed under the **MIT License**.
