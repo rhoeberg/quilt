@@ -1,17 +1,8 @@
 #include <stdint.h>
 #include "stdio.h"
-/* #include "thread.c" */
 #include "../quilt.h"
 
-// TODO (rhoe) make multiplatform
-/* #include <windows.h> */
-
 int main(int argc, char *argv[]) {
-
-	/* LARGE_INTEGER frequency; */
-	/* LARGE_INTEGER start, end; */
-	/* double elapsed_time = 0.0; */
-	/* QueryPerformanceFrequency(&frequency); */
 
 	if(argc < 3) {
 		printf("too few arguments\n");
@@ -23,19 +14,8 @@ int main(int argc, char *argv[]) {
 
 	printf("searching for: \"%s\", in file: %s\n", search_token, file_path);
 	
-	/* QueryPerformanceCounter(&start); */
 	Quilt_State state = quilt_load(file_path);
-	/* QueryPerformanceCounter(&end); */
-	/* elapsed_time = (double)(end.QuadPart - start.QuadPart) / frequency.QuadPart; */
-
-	/* printf("elapsed time:%f\n", elapsed_time); */
-
-	/* struct Quilt_Search_Result result = quilt_find_first(&state, search_token); */
-	/* printf("FOUND:%d, line:%d, column:%d\n", result.found, result.line, result.column); */
-
-
 	
-	/* QueryPerformanceCounter(&start); */
 	#define MAX_RESULTS 20000
 	struct Quilt_Search_Result results[MAX_RESULTS];
 	i32 result_count = quilt_find_all(&state, results, MAX_RESULTS, search_token);
@@ -48,13 +28,6 @@ int main(int argc, char *argv[]) {
 		printf("%s:%d:%d:\n", file_path, result.line, result.column);
 		quilt_print_line(&state, line);
 	}
-	/* QueryPerformanceCounter(&end); */
-	/* elapsed_time = (double)(end.QuadPart - start.QuadPart) / frequency.QuadPart; */
-
-	/* printf("elapsed time:%f\n", elapsed_time); */
-
-
-
 
 	quilt_cleanup(&state);
 		

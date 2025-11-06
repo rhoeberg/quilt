@@ -412,6 +412,3 @@ i32 quilt_find_all(Quilt_State* state, Quilt_Search_Result* results, i32 max_res
 
 	return result_count;
 }
-
-
-/* i32 quilt_find_first */
