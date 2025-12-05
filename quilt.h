@@ -28,12 +28,7 @@ SOFTWARE.
 
 QUILT - quick text filter
 
-todo:
-- [ ] handle utf-8
-- [x] multithreading
-- [ ] simd
-- [x] linux/osx build
-- [ ] optimize loading (maybe load entire file to string and then split it in lines in an optimized way)
+usage: see example/main.c
 
 */
 
@@ -155,6 +150,7 @@ typedef void* (*Alloc_Func)(i64);
 
 //////////////////////////////
 // ARENA
+
 Arena create_arena(i64 max_size) {
 	Arena result;
 	result.data = malloc(max_size);
@@ -183,6 +179,7 @@ u8* arena_allocate(Arena *arena, i64 amount) {
 
 //////////////////////////////
 // STRING
+
 i32 quilt_string_length(char *match) {
 	i32 current = 0;
 	while(1) {
@@ -193,6 +190,7 @@ i32 quilt_string_length(char *match) {
 	}
 	return current;
 }
+
 Quilt_String add_quilt_string(char *value, Arena *arena) {
 	Quilt_String result;
 	int length = quilt_string_length(value);
@@ -201,6 +199,7 @@ Quilt_String add_quilt_string(char *value, Arena *arena) {
 	snprintf(result.buffer, length, "%s", value);
 	return result;
 }
+
 Quilt_String add_quilt_string_from_buffer(char* buffer, i64 start_index, i64 end_index, Arena *arena) {
 	Quilt_String result;
 
@@ -214,6 +213,14 @@ Quilt_String add_quilt_string_from_buffer(char* buffer, i64 start_index, i64 end
 
 //////////////////////////////
 // QUILT API
+
+// Loads text file and allocates quilt state
+//
+// Inputs:
+// - path: Path to text file
+//
+// Returns: allocated quilt state
+//
 Quilt_State quilt_load(char *path) {
 	Quilt_State state;
 	FILE* file_ptr = fopen(path, "r");
@@ -263,17 +270,33 @@ Quilt_State quilt_load(char *path) {
 	return state;
 }
 
+// Prints quilt line
+//
+// Inputs:
+// - state: Quilt state (has to be initialized with quilt_load)
+// - line: the line to print
+//
 void quilt_print_line(Quilt_State* state, Quilt_Line line) {
 	fwrite(state->text_buffer + line.offset, 1, line.length, stdout);
 	printf("\n");
 }
 
+// Prints quilt string
+//
+// Inputs:
+// - value: string to print
+//
 void quilt_print_string(Quilt_String value) {
 	for(int i = 0; i < value.length; i++) {
 		printf("%c", value.buffer[i]);
 	}
 }
 
+// Prints quilt string
+//
+// Inputs:
+// - value: string to print
+//
 void quilt_print_file(Quilt_State* state) {
 	Quilt_String* lines = (Quilt_String*)state->lines.data;
 	for(int i = 0; i < state->amount_of_lines; i++) {
@@ -281,6 +304,11 @@ void quilt_print_file(Quilt_State* state) {
 	}
 }
 
+// Cleanup quilt state
+//
+// Inputs:
+// - state: Previously initialized Quilt_State
+//
 void quilt_cleanup(Quilt_State* state) {
 	free(state->lines.data);
 	free(state->temp_arena.data);
@@ -338,13 +366,14 @@ THREAD_RESULT quilt_find_in_lines(THREAD_DATA param) {
 	THREAD_RETURN_OK;
 }
 
-/*
-
-  quilt_find_all
-  results is a buffer of Quilt_Search_Result
-  max_results is the size of the results buffer
-
-*/
+// Find all results matching value
+//
+// Inputs:
+// - state: Previously initialized Quilt_State
+// - results: Pre allocated buffer for search results
+// - max_results: size of results buffer
+// - value: string to search for
+//
 i32 quilt_find_all(Quilt_State* state, Quilt_Search_Result* results, i32 max_results, char* value) {
 	ASSERT(results != NULL);
 
@@ -401,15 +430,14 @@ i32 quilt_find_all(Quilt_State* state, Quilt_Search_Result* results, i32 max_res
 }
 
 
-/*
-
-  quilt_find_all_single_thread
-  results is a buffer of Quilt_Search_Result
-  max_results is the size of the results buffer
-
-  runs only with one thread
-
-*/
+// Find all results matching value using single thread
+//
+// Inputs:
+// - state: Previously initialized Quilt_State
+// - results: Pre allocated buffer for search results
+// - max_results: size of results buffer
+// - value: string to search for
+//
 i32 quilt_find_all_single_thread(Quilt_State* state, Quilt_Search_Result* results, i32 max_results, char* value) {
 	ASSERT(results != NULL);
 
@@ -453,3 +481,4 @@ i32 quilt_find_all_single_thread(Quilt_State* state, Quilt_Search_Result* result
 
 	return result_count;
 }
+
