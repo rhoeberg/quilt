@@ -6,6 +6,8 @@
 #include <windows.h>
 */
 
+#define MAX_RESULTS 20000
+
 int main(int argc, char *argv[]) {
 	if(argc < 3) {
 		printf("Too few arguments\n");
@@ -24,10 +26,8 @@ int main(int argc, char *argv[]) {
 	double elapsed_time = 0.0;
 	QueryPerformanceFrequency(&frequency);
 	QueryPerformanceCounter(&start);
-	Quilt_State state = quilt_load(file_path);
 	*/
-	
-	#define MAX_RESULTS 20000
+	Quilt_State state = quilt_load(file_path);
 	struct Quilt_Search_Result results[MAX_RESULTS];
 	i32 result_count = quilt_find_all(&state, results, MAX_RESULTS, search_token);
 

@@ -58,7 +58,7 @@ typedef uint64_t u64;
 #include <windows.h>
 #define THREAD_DATA LPVOID
 #define THREAD_RESULT DWORD
-#define THREAD_RETURN_OK 0
+#define THREAD_RETURN_OK return 0
 typedef int8_t bool;
 #define THREAD HANDLE
 #define CREATE_THREAD(thread, func, data) thread = CreateThread(NULL, 0, func, data, 0, NULL)
